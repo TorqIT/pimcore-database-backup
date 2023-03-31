@@ -1,0 +1,20 @@
+{
+  "name": "torqit/pimcore-database-backup-bundle",
+  "type": "pimcore-bundle",
+  "require": {
+    "backup-manager/backup-manager": "*",
+    "league/flysystem-azure-blob-storage": "^3.10"
+  },
+  "autoload": {
+    "psr-4": {
+      "TorqIT\\PimcoreDatabaseBackupBundle\\": "src"
+    }
+  },
+  "extra": {
+    "pimcore": {
+      "bundles": [
+        "TorqIT\\PimcoreDatabaseBackupBundle\\PimcoreDatabaseBackupBundle"
+      ]
+    }
+  }
+}
