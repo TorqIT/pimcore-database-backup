@@ -4,6 +4,6 @@ namespace TorqIT\PimcoreDatabaseBackupBundle;
 
 use Pimcore\Extension\Bundle\AbstractPimcoreBundle;
 
-class FlysystemAzureBundle extends AbstractPimcoreBundle
+class PimcoreDatabaseBackupBundle extends AbstractPimcoreBundle
 {
 }

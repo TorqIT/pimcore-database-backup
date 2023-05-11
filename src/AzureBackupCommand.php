@@ -19,7 +19,7 @@ use Pimcore\Console\AbstractCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-class AzureDatabaseBackupCommand extends AbstractCommand
+class AzureBackupCommand extends AbstractCommand
 {
     public function __construct()
     {
@@ -30,7 +30,7 @@ class AzureDatabaseBackupCommand extends AbstractCommand
     {
         $this
             ->setName('torq:db-backup')
-            ->setDescription('Command to backup the database to an Azure Storage Account');
+            ->setDescription('Command to backup the Pimcore database to an Azure Storage Account');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
