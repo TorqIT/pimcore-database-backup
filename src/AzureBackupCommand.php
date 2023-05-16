@@ -30,11 +30,24 @@ class AzureBackupCommand extends AbstractCommand
     {
         $this
             ->setName('torq:db-backup')
-            ->setDescription('Command to backup the Pimcore database to an Azure Storage Account');
+            ->setDescription('Command to backup the Pimcore database to an Azure Storage Account')
+            ->addArgument('azure-storage-account', InputArgument::REQUIRED, 'The name of the Azure Storage Account in which to store the backup')
+            ->addArgument('azure-storage-account-key', InputArgument::REQUIRED, 'Key used to gain access to the Storage Account')
+            ->addArgument('database-host', InputArgument::REQUIRED, 'The database host')
+            ->addArgument('database-name', InputArgument::REQUIRED, 'The database name')
+            ->addArgument('database-user', InputArgument::REQUIRED, 'The database user')
+            ->addArgument('database-password', InputArgument::REQUIRED, 'The database password');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        $azureStorageAccount = $input->getArgument('azure-storage-account');
+        $azureStorageAccountKey = $input->getArgument('azure-storage-account-key');
+        $databaseHost = $input->getArgument('database-host');
+        $databaseName = $input->getArgument('database-name');
+        $databaseUser = $input->getArgument('database-user');
+        $databasePassword = $input->getArgument('database-password');
+
         $filesystems = new FilesystemProvider(new Config(
             [
                 'Local' => [
@@ -45,7 +58,43 @@ class AzureBackupCommand extends AbstractCommand
                 ],
             ]
         ));
-        $filesystems->add(new class implements Filesystem {
+        $filesystems->add($this->buildAzureFilesystem($azureStorageAccount, $azureStorageAccountKey));
+        $filesystems->add(new LocalFilesystem());
+
+        $databases = new DatabaseProvider(new Config([
+            'database' => [
+                'type' => 'mysql',
+                'host' => $databaseHost,
+                'port' => '3306',
+                'database' => $databaseName,
+                'user' => $databaseUser,
+                'pass' => $databasePassword,
+                'singleTransaction' => false
+            ],
+        ]));
+        $databases->add(new MysqlDatabase());
+
+        $compressors = new CompressorProvider();
+        $compressors->add(new GzipCompressor());
+
+        $manager = new Manager($filesystems, $databases, $compressors);
+
+        $manager
+            ->makeBackup()
+            ->run('database', [
+                new Destination('azure', $databaseName . '-' . time() . '-backup.sql')
+            ], 'gzip');
+
+        return self::SUCCESS;
+    }
+
+    private function buildAzureFilesystem($azureStorageAccount, $azureStorageAccountKey): Filesystem
+    {
+        return new class($azureStorageAccount, $azureStorageAccountKey) implements Filesystem {
+            public function __construct(private $azureStorageAccount, private $azureStorageAccountKey)
+            {
+            }
+
             public function handles($type): bool
             {
                 return strtolower($type ?? '') == 'azure';
@@ -53,37 +102,9 @@ class AzureBackupCommand extends AbstractCommand
 
             public function get(array $config): Flysystem
             {
-                $client = BlobRestProxy::createBlobService('DefaultEndpointsProtocol=https;AccountName=' . $_ENV['AZURE_STORAGE_ACCOUNT_NAME'] . ';AccountKey=' . $_ENV['AZURE_STORAGE_ACCOUNT_KEY'] . ';EndpointSuffix=core.windows.net');
-                return new Flysystem(new AzureBlobStorageAdapter($client, $_ENV['AZURE_STORAGE_ACCOUNT_CONTAINER']));
+                $client = BlobRestProxy::createBlobService('DefaultEndpointsProtocol=https;AccountName=' . $this->azureStorageAccount . ';AccountKey=' . $this->azureStorageAccountKey . ';EndpointSuffix=core.windows.net');
+                return new Flysystem(new AzureBlobStorageAdapter($client, $this->azureStorageAccount));
             }
-        });
-        $filesystems->add(new LocalFilesystem);
-
-        $databases = new DatabaseProvider(new Config([
-            'database' => [
-                'type' => 'mysql',
-                'host' => $_ENV['DATABASE_HOST'],
-                'port' => '3306',
-                'user' => $_ENV['DATABASE_USER'],
-                'pass' => $_ENV['DATABASE_PASSWORD'],
-                'database' => $_ENV['DATABASE_NAME'],
-                'singleTransaction' => false
-            ],
-        ]));
-        $databases->add(new MysqlDatabase);
-
-        $compressors = new CompressorProvider;
-        $compressors->add(new GzipCompressor);
-
-        $manager = new Manager($filesystems, $databases, $compressors);
-
-        $manager
-            ->makeBackup()
-            ->run('database', [
-                new Destination('azure', $_ENV['DATABASE_NAME'] . '-' . time() . '-backup.sql')
-            ], 'gzip');
-
-        return self::SUCCESS;
+        };
     }
-
 }
