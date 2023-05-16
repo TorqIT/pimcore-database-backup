@@ -3,7 +3,8 @@
   "type": "pimcore-bundle",
   "require": {
     "backup-manager/backup-manager": "*",
-    "league/flysystem-azure-blob-storage": "^3.10"
+    "league/flysystem-azure-blob-storage": "^3.10",
+    "pimcore/pimcore": "^10.5"
   },
   "autoload": {
     "psr-4": {
