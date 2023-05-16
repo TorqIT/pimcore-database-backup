@@ -1,6 +1,6 @@
 <?php
 
-namespace TorqIT\PimcoreDatabaseBackupBundle;
+namespace TorqIT\DatabaseBackupBundle;
 
 use BackupManager\Compressors\CompressorProvider;
 use BackupManager\Compressors\GzipCompressor;

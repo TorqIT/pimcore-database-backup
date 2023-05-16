@@ -14,7 +14,7 @@
   "extra": {
     "pimcore": {
       "bundles": [
-        "TorqIT\\PimcoreDatabaseBackupBundle\\PimcoreDatabaseBackupBundle"
+        "DatabaseBackupBundle"
       ]
     }
   }
