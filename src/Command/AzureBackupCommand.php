@@ -18,6 +18,7 @@ use MicrosoftAzure\Storage\Blob\BlobRestProxy;
 use Pimcore\Console\AbstractCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Input\InputArgument;
 
 class AzureBackupCommand extends AbstractCommand
 {
