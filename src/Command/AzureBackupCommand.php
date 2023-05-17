@@ -31,7 +31,7 @@ class AzureBackupCommand extends AbstractCommand
     {
         $this
             ->setName('torq:db-backup')
-            ->setDescription('Command to backup the Pimcore database to an Azure Storage Account')
+            ->setDescription('Command to backup a MySQL Pimcore database to an Azure Storage Account')
             ->addArgument('azure-storage-account-name', InputArgument::REQUIRED, 'The name of the Azure Storage Account in which to store the backup')
             ->addArgument('azure-storage-account-container', InputArgument::REQUIRED, 'The name of the Azure Storage Account container in which to store the backup')
             ->addArgument('azure-storage-account-key', InputArgument::REQUIRED, 'Key used to gain access to the Storage Account')
