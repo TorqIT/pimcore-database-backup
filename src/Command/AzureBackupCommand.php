@@ -32,7 +32,8 @@ class AzureBackupCommand extends AbstractCommand
         $this
             ->setName('torq:db-backup')
             ->setDescription('Command to backup the Pimcore database to an Azure Storage Account')
-            ->addArgument('azure-storage-account', InputArgument::REQUIRED, 'The name of the Azure Storage Account in which to store the backup')
+            ->addArgument('azure-storage-account-name', InputArgument::REQUIRED, 'The name of the Azure Storage Account in which to store the backup')
+            ->addArgument('azure-storage-account-container', InputArgument::REQUIRED, 'The name of the Azure Storage Account container in which to store the backup')
             ->addArgument('azure-storage-account-key', InputArgument::REQUIRED, 'Key used to gain access to the Storage Account')
             ->addArgument('database-host', InputArgument::REQUIRED, 'The database host')
             ->addArgument('database-name', InputArgument::REQUIRED, 'The database name')
@@ -42,7 +43,10 @@ class AzureBackupCommand extends AbstractCommand
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $azureStorageAccount = $input->getArgument('azure-storage-account');
+        $this->fixBrokenLocalFlysystemImport();
+
+        $azureStorageAccountName = $input->getArgument('azure-storage-account-name');
+        $azureStorageAccountContainer = $input->getArgument('azure-storage-account-container');
         $azureStorageAccountKey = $input->getArgument('azure-storage-account-key');
         $databaseHost = $input->getArgument('database-host');
         $databaseName = $input->getArgument('database-name');
@@ -51,7 +55,8 @@ class AzureBackupCommand extends AbstractCommand
 
         $filesystems = new FilesystemProvider(new Config(
             [
-                'Local' => [
+                'local' => [
+                    'type' => 'Local',
                     'root' => '/tmp'
                 ],
                 'azure' => [
@@ -59,20 +64,10 @@ class AzureBackupCommand extends AbstractCommand
                 ],
             ]
         ));
-        $filesystems->add($this->buildAzureFilesystem($azureStorageAccount, $azureStorageAccountKey));
-        $filesystems->add(new LocalFilesystem());
+        $filesystems->add($this->buildAzureFilesystem($azureStorageAccountName, $azureStorageAccountContainer, $azureStorageAccountKey));
+        $filesystems->add(new LocalFilesystem);
 
-        $databases = new DatabaseProvider(new Config([
-            'database' => [
-                'type' => 'mysql',
-                'host' => $databaseHost,
-                'port' => '3306',
-                'database' => $databaseName,
-                'user' => $databaseUser,
-                'pass' => $databasePassword,
-                'singleTransaction' => false
-            ],
-        ]));
+        $databases = $this->buildDatabaseProvider($databaseHost, $databaseName, $databaseUser, $databasePassword);
         $databases->add(new MysqlDatabase());
 
         $compressors = new CompressorProvider();
@@ -89,10 +84,10 @@ class AzureBackupCommand extends AbstractCommand
         return self::SUCCESS;
     }
 
-    private function buildAzureFilesystem($azureStorageAccount, $azureStorageAccountKey): Filesystem
+    private function buildAzureFilesystem($azureStorageAccountName, $azureStorageAccountContainer, $azureStorageAccountKey): Filesystem
     {
-        return new class($azureStorageAccount, $azureStorageAccountKey) implements Filesystem {
-            public function __construct(private $azureStorageAccount, private $azureStorageAccountKey)
+        return new class($azureStorageAccountName, $azureStorageAccountContainer, $azureStorageAccountKey) implements Filesystem {
+            public function __construct(private $azureStorageAccountName, private $azureStorageAccountContainer, private $azureStorageAccountKey)
             {
             }
 
@@ -103,9 +98,41 @@ class AzureBackupCommand extends AbstractCommand
 
             public function get(array $config): Flysystem
             {
-                $client = BlobRestProxy::createBlobService('DefaultEndpointsProtocol=https;AccountName=' . $this->azureStorageAccount . ';AccountKey=' . $this->azureStorageAccountKey . ';EndpointSuffix=core.windows.net');
-                return new Flysystem(new AzureBlobStorageAdapter($client, $this->azureStorageAccount));
+                $client = BlobRestProxy::createBlobService('DefaultEndpointsProtocol=https;AccountName=' . $this->azureStorageAccountName . ';AccountKey=' . $this->azureStorageAccountKey . ';EndpointSuffix=core.windows.net');
+                return new Flysystem(new AzureBlobStorageAdapter($client, $this->azureStorageAccountContainer));
             }
         };
+    }
+
+    /**
+     * This is necessary until https://github.com/backup-manager/backup-manager/issues/188 is fixed.
+     */
+    private function fixBrokenLocalFlysystemImport(): void
+    {
+        $pathToFile = "/var/www/html/vendor/backup-manager/backup-manager/src/Filesystems/LocalFilesystem.php";
+
+        $originalText = "use League\Flysystem\Adapter\Local;";
+        $textReplace = "use League\Flysystem\Local\LocalFilesystemAdapter as Local;";
+
+        $fileChange = file_get_contents($pathToFile);
+        $textContent = str_replace($originalText, $textReplace, $fileChange);
+        file_put_contents($pathToFile, $textContent);
+    }
+
+    private function buildDatabaseProvider(mixed $databaseHost, mixed $databaseName, mixed $databaseUser, mixed $databasePassword): DatabaseProvider
+    {
+        return new DatabaseProvider(new Config([
+            'database' => [
+                'type' => 'mysql',
+                'host' => $databaseHost,
+                'port' => '3306',
+                'database' => $databaseName,
+                'user' => $databaseUser,
+                'pass' => $databasePassword,
+                'singleTransaction' => false,
+                'ssl' => true,
+                'extraParams' => '--ssl-ca=/var/www/html/config/db/DigiCertGlobalRootCA.crt.pem'
+            ],
+        ]));
     }
 }
